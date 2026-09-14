@@ -1,0 +1,64 @@
+# Raw image datasets & video files
+week01-manual-clahe/low-light-images/
+*.jpg
+*.jpeg
+*.png
+*.bmp
+*.tiff
+*.tif
+*.pgm
+*.ppm
+*.mp4
+*.avi
+*.mov
+# Byte-compiled / optimized / DLL files
+pycache/
+*.py[cod]
+*$py.class
+# C extensions
+*.so
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+# Virtual environments
+venv/
+.venv/
+env/
+.env/
+ENV/
+env.bak/
+venv.bak/
+# Matplotlib cache
+.matplotlib/
+# Vs Code settings
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+# MacOS files
+.DS_Store
+.AppleDouble
+.LSOverride
+# Windows image file caches
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthrough.db
+Desktop.ini
+$RECYCLE.BIN/
