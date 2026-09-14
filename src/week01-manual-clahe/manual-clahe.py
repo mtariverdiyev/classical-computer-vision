@@ -56,9 +56,68 @@ def manual_clahe(image, clip_limit=3.0, tile_grid_size=(8, 8)):
     clip_limit     : contrast-limiting strength
     tile_grid_size : (tiles_x, tiles_y) -> how many tiles across / down
     """
-
-    pass  # TODO: Implement the manual CLAHE algorithm here, using the clipped_histogram function.
-
+    tiles_x, tiles_y = tile_grid_size
+    rows, cols = image.shape
+    # --- Pad the image so it divides evenly into whole tiles -------------
+    # We pad by repeating edge pixels ("edge" mode) so the padding doesn't
+    # introduce fake dark/bright borders that would distort the histograms.
+    padded_rows = int(np.ceil(rows / tiles_y) * tiles_y)
+    padded_cols = int(np.ceil(cols / tiles_x) * tiles_x)
+    pad_bottom = padded_rows - rows
+    pad_right = padded_cols - cols
+    padded = np.pad(image, ((0, pad_bottom), (0, pad_right)), mode='edge')
+ 
+    tile_h = padded_rows // tiles_y
+    tile_w = padded_cols // tiles_x
+ 
+    # The clip limit is normally expressed relative to an "ideal" flat
+    # histogram, so we scale it by the number of pixels per tile.
+    clip_limit_pixels = max(clip_limit * tile_h * tile_w / 256.0, 1.0)
+ 
+    # --- Build one LUT (256 values) per tile ------------------------------
+    luts = np.zeros((tiles_y, tiles_x, 256), dtype=np.float64)
+    for ty in range(tiles_y):
+        for tx in range(tiles_x):
+            tile = padded[ty * tile_h:(ty + 1) * tile_h,
+                          tx * tile_w:(tx + 1) * tile_w]
+            hist = clipped_histogram(tile, clip_limit_pixels)
+            luts[ty, tx] = histogram_to_lut(hist)
+ 
+    # --- Bilinear interpolation between neighbouring tile LUTs ------------
+    # This is what makes CLAHE "adaptive" without creating visible blocky
+    # edges at tile boundaries: every pixel blends the mapping of the four
+    # tile-centers surrounding it, weighted by distance.
+    y_idx, x_idx = np.meshgrid(np.arange(padded_rows), np.arange(padded_cols),
+                                indexing='ij')
+ 
+    # Express each pixel's position as a fractional tile coordinate,
+    # measured from tile *centers* (hence the -0.5).
+    ty_f = (y_idx / tile_h) - 0.5
+    tx_f = (x_idx / tile_w) - 0.5
+ 
+    ty0 = np.clip(np.floor(ty_f).astype(int), 0, tiles_y - 1)
+    tx0 = np.clip(np.floor(tx_f).astype(int), 0, tiles_x - 1)
+    ty1 = np.clip(ty0 + 1, 0, tiles_y - 1)
+    tx1 = np.clip(tx0 + 1, 0, tiles_x - 1)
+ 
+    wy = np.clip(ty_f - ty0, 0, 1)
+    wx = np.clip(tx_f - tx0, 0, 1)
+ 
+    # Fancy-index every tile's LUT at once using the pixel's own
+    # intensity value as the lookup index -> fully vectorized, no python
+    # loop over pixels.
+    top_left = luts[ty0, tx0, padded]
+    top_right = luts[ty0, tx1, padded]
+    bottom_left = luts[ty1, tx0, padded]
+    bottom_right = luts[ty1, tx1, padded]
+ 
+    top = top_left * (1 - wx) + top_right * wx
+    bottom = bottom_left * (1 - wx) + bottom_right * wx
+    result = top * (1 - wy) + bottom * wy
+ 
+    # Crop back to the original (unpadded) size and convert to uint8.
+    result = result[:rows, :cols]
+    return np.clip(result, 0, 255).astype(np.uint8)
 
 # ---------------------------------------------------------------------------
 #   Load every image in the input folder and display original vs
