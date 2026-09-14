@@ -41,7 +41,13 @@ def histogram_to_lut(hist):
     'v' is the cumulative sum of the histogram up to 'v', rescaled so it
     spans the full 0-255 output range.
     """
-    pass  # TODO: Implement this function to return a LUT based on the input histogram.
+    cdf = np.cumsum(hist)
+    cdf_min = cdf[cdf > 0].min() if np.any(cdf > 0) else 0
+    denom = max(cdf[-1] - cdf_min, 1)  # avoid division by zero on empty tiles
+ 
+    lut = (cdf - cdf_min) / denom * 255.0
+    lut = np.clip(lut, 0, 255)
+    return lut
  
 
 def manual_clahe(image, clip_limit=3.0, tile_grid_size=(8, 8)):
