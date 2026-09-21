@@ -1,7 +1,7 @@
 import cv2 as cv
 import numpy as np
 
-def detect_document_corners(imageBW):
+def detect_document_corners(blured_image):
     """
     Find the 4-corner outline of a document (ID card, license plate, etc.)
     in a binary Canny edge map, and return its corners as a polygon.
@@ -10,12 +10,11 @@ def detect_document_corners(imageBW):
     found, or None if nothing suitable is detected.
     """
 
-    edges = cv.Canny(imageBW, 50, 150)
-    contours, _ = cv.findContours(edges, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
+    edges = cv.Canny(blured_image, 50, 150)
     # Raw Canny edges are often broken into small disconnected fragments. Dilating then eroding ("closing") bridges those small gaps so the document's actual outline becomes traceable as a single contour.
     kernel = np.ones((5, 5), np.uint8)
     closed = cv.dilate(edges, kernel, iterations=2)
-    closed = cv.erode(closed, kernel, iterations=1)
+    closed = cv.erode(closed, kernel, iterations=1)    
  
     # RETR_EXTERNAL: we only care about the outermost boundary of the document, not internal edges (text, logos, etc. inside it).
     contours, _ = cv.findContours(closed, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
