@@ -31,7 +31,6 @@ def main():
         blurred_gray_image = apply_gaussian_blur(image_gray, kernel_height=5, kernel_width=5, sigma=1.0)
 
         # Detect document corners in the blurred image
-        # TODO: detect_document_corners function is expected to be implemented in detection.py
         corners = detect_document_corners(blurred_gray_image)
 
         if corners is None:

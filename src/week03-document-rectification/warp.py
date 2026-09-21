@@ -1,10 +1,33 @@
-def order_points(pts):
-    # TODO: Implement a method to order the four points in the input array such that they are in the order of top-left, top-right, bottom-right, and bottom-left.
-    pass
+import numpy as np
 
-def compute_destination_points(image_size):
-    # TODO: Implement a method to compute the destination points for the perspective transform based on the size of the input image.
-    pass
+def order_points(pts):
+    """
+    Sort 4 arbitrary (unordered) corner points into a consistent
+    [top-left, top-right, bottom-right, bottom-left] order.
+    """
+    rect = np.zeros((4, 2), dtype=np.float32)
+    # x + y is minimized for the top-left cornet and maximized for the bottom-right corner
+    sum = np.sum(pts, axis=1)
+    rect[0] = pts[np.argmin(sum)]  # top-left
+    rect[2] = pts[np.argmax(sum)]  # bottom-right
+
+    # y - x is maximized for the bottom-left corner and minimized for the top-right corner
+    diff = np.diff(pts, axis=1)
+    rect[1] = pts[np.argmin(diff)]  # top-right
+    rect[3] = pts[np.argmax(diff)]  # bottom-left
+
+    return rect
+
+def compute_destination_points(image):
+    """
+    Compute the destination points for the rectified image based on the input image size.
+    The destination points are the corners of a rectangle that will be used to warp the input image
+    """
+    image_size = image.shape
+    height, width = image_size[0], image_size[1]
+    # Define the destination points for the rectified image
+    dst_pts = np.array([[0, 0], [width - 1, 0], [width - 1, height - 1], [0, height - 1]], dtype=np.float32)
+    return dst_pts
 
 def compute_homography(src_pts, dst_pts):
     # TODO: Implement a method to compute the homography matrix that maps the source points to the destination points.
