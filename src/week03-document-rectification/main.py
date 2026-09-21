@@ -28,7 +28,6 @@ def main():
         image_gray = cv.cvtColor(image_bgr, cv.COLOR_BGR2GRAY)
 
         # Apply Gaussian blur to reduce noise
-        # TODO: apply_gaussian_blur function is expected to be implemented in gaussian.py
         blurred_gray_image = apply_gaussian_blur(image_gray, kernel_height=5, kernel_width=5, sigma=1.0)
 
         # Detect document corners in the blurred image
