@@ -46,6 +46,7 @@ def hough_circles(image_bgr):
     """
     Perform Hough Circle Transform on a BGR image and return the image with detected circles drawn.
     """
-    image_gray = cv.cvtColor(image_bgr, cv.COLOR_BGR2GRAY)
+    image_copy = image_bgr.copy()
+    image_gray = cv.cvtColor(image_copy, cv.COLOR_BGR2GRAY)
     circles = detect_circles(image_gray)
-    return draw_circles(image_bgr, circles)
+    return draw_circles(image_copy, circles)
