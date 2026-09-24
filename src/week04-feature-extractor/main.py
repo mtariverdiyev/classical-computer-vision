@@ -9,6 +9,9 @@ from hough_circles import hough_circles
 
 
 def main():
+    """
+    Main function to perform Hough Circle Transform on images in the "circle-detection-images" directory.
+    """
     script_dir = os.path.dirname(os.path.abspath(__file__))
     image_dir = os.path.join(script_dir, "circle-detection-images")
 
