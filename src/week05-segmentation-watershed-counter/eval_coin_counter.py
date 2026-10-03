@@ -6,7 +6,7 @@ import csv
 from watershed import watershed
 
 CSV_PATH = "coin-counting-eval/coins_count_values.csv"
-IMAGES_ROOT = "coin-counting-eval"   # base folder that all_coins/china_coins/... live under
+IMAGES_ROOT = "coin-counting-eval/coins_images"   # base folder that all_coins/china_coins/... live under
 FOLDER_COL = "folder"                # column holding the subfolder name
 IMAGE_COL = "image_name"             # column holding the filename
 COUNT_COL = "coins_count"            # column holding the true count
@@ -36,7 +36,7 @@ def load_ground_truth(csv_path, folder_col, image_col, count_col):
 
 def evaluate(images_root, ground_truth):
     """
-    TODO: Evaluate the predicted coin counts against the ground truth.
+    Evaluate the predicted coin counts against the ground truth.
 
     Args:
     images_root (str): Root folder of all coin images.
@@ -44,6 +44,41 @@ def evaluate(images_root, ground_truth):
 
     Must return a tuple of the list of (folder, filename, true_count, predicted_count) tuples, the list of errors, and the dictinory of errors per folder.
     """
+    results = []
+    errors = []
+    errors_by_folder = {}
+
+    for folder, filename, true_count in ground_truth:
+        image_path = os.path.join(images_root, folder, filename)
+
+        image_bgr = cv.imread(image_path)
+
+        if image_bgr is None:
+            print(f"  [skip] Could not read {folder}/{filename}")
+            continue
+
+        try:
+            predicted_count, _ = watershed(image_bgr)
+        except Exception as e:
+            print(f"  [error] {folder}/{filename}: {e}")
+            continue
+
+        
+        results.append((folder, filename, true_count, predicted_count))
+
+        error = abs(predicted_count - true_count)
+        errors.append(error)
+
+        errors_by_folder.setdefault(folder, []).append(error)
+        
+        print(f"  {folder:15s} {filename:25s} true={true_count:3d}  pred={predicted_count:3d}  "
+              f"{'OK' if predicted_count == true_count else 'diff=' + str(predicted_count - true_count)}")
+ 
+    return results, errors, errors_by_folder
+
+
+
+
 
 def report(results, errors, errors_by_folder):
     """
@@ -62,7 +97,8 @@ def main():
     """
     print(f"Loading ground truth from {CSV_PATH} ...")
     ground_truth = load_ground_truth(CSV_PATH, FOLDER_COL, IMAGE_COL, COUNT_COL)
-    print(ground_truth)
+    
+    results, errors, errors_by_folder = evaluate(IMAGES_ROOT, ground_truth)
 
 
 if __name__ == "__main__":
