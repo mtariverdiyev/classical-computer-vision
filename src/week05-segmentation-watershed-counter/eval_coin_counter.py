@@ -82,7 +82,7 @@ def evaluate(images_root, ground_truth):
 
 def report(results, errors, errors_by_folder):
     """
-    TODO: Calculate and display the exact match accuracy, accuracy within +/-1, mean absolute error, and root mean square error
+    Calculate and display the exact match accuracy, accuracy within +/-1, mean absolute error, and root mean square error
     
     Args:
     results (list): List of (folder, filename, true_count, predicted_count)
@@ -91,6 +91,38 @@ def report(results, errors, errors_by_folder):
 
     Must print the results to the console and save them to a CSV file named "results.csv" in the current working directory.
     """
+    n = len(results)
+    if n == 0:
+        print("No images were successfully evaluated.")
+        return
+    errors = np.array(errors)
+    exact_matches = np.sum(errors == 0)
+    within_one = np.sum(errors <= 1)
+
+    exact_acc = 100 * exact_matches / n
+    within_one_acc = 100 * within_one / n
+    mae = np.mean(errors)
+    rmse = np.sqrt(np.mean(errors ** 2))
+
+    print("\n" + "=" * 55)
+    print(f"Evaluated on {n} images from Count Coins Image Dataset")
+    print("=" * 55)
+    print(f"Exact-match accuracy   : {exact_acc:.1f}%  ({exact_matches}/{n})")
+    print(f"Accuracy within +/-1   : {within_one_acc:.1f}%  ({within_one}/{n})")
+    print(f"Mean Absolute Error    : {mae:.2f} coins")
+    print(f"RMSE                   : {rmse:.2f} coins")
+ 
+    print("\nPer-folder breakdown:")
+    for folder, errs in sorted(errors_by_folder.items()):
+        errs = np.array(errs)
+        folder_exact = 100.0 * np.sum(errs == 0) / len(errs)
+        print(f"  {folder:15s} n={len(errs):3d}  exact-match={folder_exact:5.1f}%  "
+              f"MAE={np.mean(errs):.2f}")
+    print("=" * 55)
+
+
+
+
 def main():
     """
     Load the ground truth data, evaluate the predicted coin counts, and report the results.
@@ -99,6 +131,9 @@ def main():
     ground_truth = load_ground_truth(CSV_PATH, FOLDER_COL, IMAGE_COL, COUNT_COL)
     
     results, errors, errors_by_folder = evaluate(IMAGES_ROOT, ground_truth)
+
+    report(results, errors, errors_by_folder)
+    
 
 
 if __name__ == "__main__":
