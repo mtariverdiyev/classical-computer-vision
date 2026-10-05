@@ -1,8 +1,7 @@
 # Classical Computer Vision — Weeks 1–5
 
-This repo covers Weeks 1-5 of the Computer Vision & Object
-Detection. Each week is a self-contained mini-project
-built on plain NumPy + OpenCV, moving from manual pixel-level algorithm
+-This repo covers Weeks 1-5 of the Computer Vision & Object
+-Detection. Each week is a self-contained mini-project. Each week is a self-contained mini-project built on plain NumPy + OpenCV, moving from manual pixel-level algorithm
 implementations (Week 1–2) toward using OpenCV's built-in primitives as
 building blocks for larger pipelines (Week 3–5).
 
@@ -306,6 +305,79 @@ undercount.
 3. For each image, the console prints the detected object count, and a
    3-panel window shows: original, Otsu binary mask, and the final
    colored/segmented Watershed result.
+
+### Quantitative evaluation (baseline)
+
+To get an actual accuracy number rather than eyeballing a handful of
+images, `watershed()` was benchmarked against the
+[Kaggle "Count Coins Image Dataset"](https://www.kaggle.com/datasets/balabaskar/count-coins-image-dataset)
+(1,444 labeled images across 7 currency folders, each with a
+ground-truth coin count) using a separate evaluation harness,
+`eval_coin_counter.py`. See that script's docstring for setup
+instructions.
+
+**Baseline results — the `watershed.py` implementation described above,
+unmodified:**
+
+| Metric | Value |
+|---|---|
+| Exact-match accuracy | 13.7% (198/1444) |
+| Accuracy within ±1 | 31.2% (451/1444) |
+| Mean Absolute Error (MAE) | 3.83 coins |
+| RMSE | 6.84 coins |
+
+| Folder | n | Exact-match | MAE |
+|---|---|---|---|
+| all_coins | 215 | 14.4% | 4.86 |
+| china_coins | 210 | 8.6% | 3.52 |
+| euro_coins | 231 | 11.3% | 4.59 |
+| indian_coins | 220 | 15.9% | 4.89 |
+| peso_coins | 184 | 11.4% | 2.91 |
+| us_coins | 173 | 9.8% | 3.06 |
+| yen_coins | 211 | 23.7% | 2.61 |
+
+**Known inaccuracies in this implementation**, found by inspecting the
+worst-predicted images rather than inferring from the aggregate numbers
+alone:
+
+1. **Otsu polarity is never checked.** `otsu_threshold()` returns `255`
+   for "brighter than the cutoff" and `0` for everything else — it has
+   no notion of which class is actually the coin. `watershed()` silently
+   assumes `255 == coin` throughout (the distance transform, sure
+   background/foreground logic all depend on it). This assumption breaks
+   on any image where the background is brighter than the coins — e.g. a
+   dark coin photographed on a white catalog page or product-listing
+   background. On those images the pipeline effectively measures
+   distance *into the background*, not the coins, producing wildly wrong
+   counts (observed: a 96-coin grid predicted `2`).
+2. **The foreground threshold is a single global cutoff, which breaks on
+   mixed-scale images.** `sure_foreground` is computed by thresholding
+   the distance transform at a flat `0.5 * distance_transform.max()`.
+   This value is set by whichever connected blob is *largest in the
+   whole image*. When a photo mixes one large cluster of touching coins
+   with smaller or separate coins elsewhere in the same frame, those
+   smaller coins' own distance values never clear 50% of the big
+   cluster's max — they're never seeded as their own object, and get
+   merged into "unknown"/absorbed into their neighbor instead of counted
+   separately. This systematically undercounts images with uneven
+   coin-cluster sizes.
+3. **These two bugs partially mask each other in the aggregate metric
+   above.** Bug 2's tendency to only ever seed the single most dominant
+   blob in an image has a side effect: it also suppresses fine surface
+   detail (engraved lettering, portraits) from being mistaken for
+   separate objects, since only one region can ever be "the max." That
+   means this baseline's MAE of 3.83 is, to some extent, an accident of
+   two independent bugs' effects partially offsetting one another rather
+   than evidence the underlying logic is sound — fixing either bug in
+   isolation does not reliably improve overall accuracy, since it can
+   remove a failure mode while simultaneously removing a different
+   failure mode's accidental suppression.
+4. **Morphological kernel size and the pre-threshold blur are both fixed
+   pixel constants** (`(3,3)` kernel, `(5,5)` blur) regardless of image
+   resolution. This dataset spans a large range, from small catalog
+   thumbnails to macro close-ups where a single coin fills most of the
+   frame — a fixed pixel-size constant can at best be correctly tuned
+   for one end of that range.
 
 ---
 
