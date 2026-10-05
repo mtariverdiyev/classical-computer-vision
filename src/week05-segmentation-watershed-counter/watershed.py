@@ -25,6 +25,16 @@ def watershed(image_bgr):
     """
     image_gray = cv.cvtColor(image_bgr, cv.COLOR_BGR2GRAY)
     image_gray = cv.GaussianBlur(image_gray, (5, 5), 0)
+
+    for _ in range(2):
+        image_gray = cv.bilateralFilter(image_gray,
+            d=-1,                       # derived from sigmaSpace below
+            sigmaColor=60,              # how different two tones can be
+                                        # and still get averaged together
+            sigmaSpace=15,              # spatial reach, same adaptive
+                                        # scale used elsewhere
+        )
+
     
     _, binary = otsu_threshold(image_gray)
 
