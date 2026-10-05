@@ -76,10 +76,6 @@ def evaluate(images_root, ground_truth):
  
     return results, errors, errors_by_folder
 
-
-
-
-
 def report(results, errors, errors_by_folder):
     """
     Calculate and display the exact match accuracy, accuracy within +/-1, mean absolute error, and root mean square error
@@ -120,9 +116,6 @@ def report(results, errors, errors_by_folder):
               f"MAE={np.mean(errs):.2f}")
     print("=" * 55)
 
-
-
-
 def main():
     """
     Load the ground truth data, evaluate the predicted coin counts, and report the results.
@@ -134,7 +127,5 @@ def main():
 
     report(results, errors, errors_by_folder)
     
-
-
 if __name__ == "__main__":
     main()

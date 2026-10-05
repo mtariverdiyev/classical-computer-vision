@@ -2,6 +2,18 @@ import cv2 as cv
 import numpy as np
 from otsu import otsu_threshold
 
+def fix_polarity(binary):
+    """
+    We fix the polarity based on the heuristic below:
+    Heuristic: coins essentially never touch all four edges of the image, 
+    so whichever class dominates the image border is almost
+    certainly background. If the 255-class dominates the border, the
+    mask is inverted relative to what the pipeline expects, so flip it.
+    """    
+    edges = np.concatenate([binary[0, :], binary[-1, :], binary[:, 0], binary[:, -1]])
+    frac_white_on_edges = np.mean(edges == 255)
+    return cv.bitwise_not(binary) if frac_white_on_edges > 0.5 else binary        
+
 def watershed(image_bgr):
     """
     Perform Watershed segmentation on a BGR image and return the count of detected objects and the segmented image.
@@ -15,6 +27,8 @@ def watershed(image_bgr):
     image_gray = cv.GaussianBlur(image_gray, (5, 5), 0)
     
     _, binary = otsu_threshold(image_gray)
+
+    binary = fix_polarity(binary)
     
     kernel = np.ones((3, 3), np.uint8)
     opening = cv.morphologyEx(binary, cv.MORPH_OPEN, kernel, iterations=4)
