@@ -56,14 +56,13 @@ week5_object_counter/
             us_coins/
             yen_coins/
     random_predictions/      <- figures saved by eval_coin_counter.py
-
-assets/                      <- static images for README
-    week5_exact_euro_coins.png
-    week5_exact_us_coins.png
-    week5_exact_yen_coins.png
-    week5_fail_all_coins.png
-    week5_fail_china_coins.png
-    week5_fail_euro_coins.png
+    assets/                      <- static images for README
+       week5_exact_euro_coins.png
+       week5_exact_us_coins.png
+       week5_exact_yen_coins.png
+       week5_fail_all_coins.png
+       week5_fail_china_coins.png
+       week5_fail_euro_coins.png
 ```
 
 ## Requirements
@@ -476,6 +475,7 @@ Coins Image Dataset” using `eval_coin_counter.py`.
   (~**0.0973 s/image**).
 - 5-run benchmark: average run **155.2165 s**, average
   **0.1075 s/image**, standard deviation **8.4705 s**.
+
 
 ### Remaining limitations
 
