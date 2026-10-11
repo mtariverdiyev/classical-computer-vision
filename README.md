@@ -477,38 +477,6 @@ Coins Image Dataset” using `eval_coin_counter.py`.
 - 5-run benchmark: average run **155.2165 s**, average
   **0.1075 s/image**, standard deviation **8.4705 s**.
 
-**Comparison to the previous baseline:**
-
-| Metric | Old baseline | Updated |
-|---|---:|---:|
-| Exact-match | 13.7% | **50.1%** |
-| Within ±1 | 31.2% | **65.4%** |
-| MAE | 3.83 | **2.39** |
-| RMSE | 6.84 | **5.66** |
-
-The largest improvement comes from adding the `fix_polarity` edge
-heuristic: the old pipeline silently assumed `255 == coin`, which broke
-on bright-background / dark-coin images. Bilateral filtering also helps
-stabilize Otsu and distance-transform seeding by reducing noise without
-destroying edges.
-
-### Remaining limitations
-
-1. **The foreground threshold is still a single global cutoff.**
-   `sure_foreground` uses `0.5 * distance_transform.max()` for the whole
-   image. When a photo mixes one large touching cluster with smaller or
-   separate coins, those smaller coins may never clear 50% of the largest
-   blob’s max distance — they can be merged into “unknown” or absorbed
-   into a neighbor instead of counted separately.
-2. **Morphological kernel size and pre-threshold blur are still fixed
-   pixel constants** (`(3,3)` kernel, `(5,5)` blur), regardless of image
-   resolution. The dataset spans thumbnails to macro close-ups, so one
-   fixed scale cannot be optimal everywhere.
-3. **Remaining errors are concentrated in images with uneven coin scales
-   or unusual backgrounds.** The per-folder MAE shows `all_coins` and
-   `indian_coins` are the hardest subsets, while `yen_coins`, `us_coins`,
-   and `peso_coins` are comparatively clean.
-
 ### Example predictions
 
 The images below illustrate the watershed pipeline's performance on
