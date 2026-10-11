@@ -4,6 +4,8 @@ import os
 import csv
 import random
 import matplotlib.pyplot as plt
+import io
+from contextlib import redirect_stdout
 
 
 from watershed import watershed
@@ -217,20 +219,63 @@ def display_random_predictions(results, images_root, n=10, save_dir=None,
 
 
 
+
+
+def performance_metrics(num_runs=5):
+    ground_truth = load_ground_truth(CSV_PATH, FOLDER_COL, IMAGE_COL, COUNT_COL)
+    total_images = len(ground_truth)
+    
+    run_times = []
+    print(f"[!] Benchmarking started over {num_runs} runs. Terminal outputs are muted...")
+
+    for run in range(num_runs):
+        with redirect_stdout(io.StringIO()):
+            start_time = cv.getTickCount()
+            
+            results, errors, errors_by_folder = evaluate(IMAGES_ROOT, ground_truth)
+                           
+            end_time = cv.getTickCount()
+            
+        elapsed_time = (end_time - start_time) / cv.getTickFrequency()
+        run_times.append(elapsed_time)
+        
+    mean_run = np.mean(run_times)
+    std_run = np.std(run_times)
+    mean_image = mean_run / total_images if total_images > 0 else 0
+
+    print(f"\nPerformance Metrics (over {num_runs} runs):")
+    print(f"  Average time per run  : {mean_run:.4f} seconds")
+    print(f"  Average time per image: {mean_image:.4f} seconds")
+    print(f"  Mean Run Time         : {mean_run:.4f} seconds")
+    print(f"  Std Dev               : {std_run:.4f} seconds")
+    
+
+
 def main():
     """
     Load the ground truth data, evaluate the predicted coin counts, and report the results.
     """
+    print("\n\n")
     print(f"Loading ground truth from {CSV_PATH} ...")
+    start_time = cv.getTickCount()
     ground_truth = load_ground_truth(CSV_PATH, FOLDER_COL, IMAGE_COL, COUNT_COL)
-    
+
+    print(f"Evaluating {len(ground_truth)} images from Count Coins Image Dataset ...")
     results, errors, errors_by_folder = evaluate(IMAGES_ROOT, ground_truth)
 
+    print(f"Reporting results ...")
     report(results, errors, errors_by_folder)
-
+    end_time = cv.getTickCount()
+    elapsed_time = (end_time - start_time) / cv.getTickFrequency()
+    print(f"Evaluation completed in {elapsed_time:.2f} seconds.")
+    average_time_per_image = elapsed_time / len(ground_truth) if len(ground_truth) > 0 else 0
+    print(f"Average time per image: {average_time_per_image:.4f} seconds")
     display_random_predictions(
         results, IMAGES_ROOT, n=10, seed=42, exact_matches_only=False, save_dir="random_predictions"
     )
+
+    # Uncomment the following line to run performance metrics evaluation
+    # performance_metrics(num_runs=5)    
     
 if __name__ == "__main__":
     main()
