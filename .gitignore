@@ -12,11 +12,15 @@ week01-manual-clahe/low-light-images/
 *.avi
 *.mov
 
-# Allow README assets
-!assets/*.png
-!assets/*.jpg
-!assets/*.jpeg
+# Allow static README assets (anywhere in the repo)
+!**/assets/*.png
+!**/assets/*.jpg
+!**/assets/*.jpeg
+!**/assets/*.gif
+!**/assets/*.webp
 
+# Allow the coin-counting ground-truth CSV (not the images)
+!**/coin-counting-eval/coins_count_values.csv
 # Byte-compiled / optimized / DLL files
 pycache/
 *.py[cod]
