@@ -1,7 +1,7 @@
 # Classical Computer Vision — Weeks 1–5
 
--This repo covers Weeks 1-5 of the Computer Vision & Object
--Detection. Each week is a self-contained mini-project. Each week is a self-contained mini-project built on plain NumPy + OpenCV, moving from manual pixel-level algorithm
+This repo covers Weeks 1-5 of the Computer Vision & Object
+Detection. Each week is a self-contained mini-project built on plain NumPy + OpenCV, moving from manual pixel-level algorithm
 implementations (Week 1–2) toward using OpenCV's built-in primitives as
 building blocks for larger pipelines (Week 3–5).
 
@@ -11,7 +11,7 @@ building blocks for larger pipelines (Week 3–5).
 | 2 | Spatial Filtering | Noise Suppression Pipeline | `image-denoiser.py`, `gaussian.py` |
 | 3 | Geometric Warping | Document Rectification | `main.py`, `detection.py`, `gaussian.py`, `warp.py` |
 | 4 | Edge/Hough Transforms | Industrial Feature Extractor | `main.py`, `hough_circles.py` |
-| 5 | Segmentation | Overlapping Object Counter | `main.py`, `otsu.py`, `watershed.py` |
+| 5 | Segmentation | Overlapping Object Counter | `main.py`, `otsu.py`, `watershed.py`, `eval_coin_counter.py` |
 
 ## Suggested Folder Layout
 
@@ -44,7 +44,26 @@ week5_object_counter/
     main.py
     otsu.py
     watershed.py
-    coin-images/
+    eval_coin_counter.py
+    coin-counting-eval/      <- Kaggle dataset (required for evaluation)
+        coins_count_values.csv
+        coins_images/
+            all_coins/
+            china_coins/
+            euro_coins/
+            indian_coins/
+            peso_coins/
+            us_coins/
+            yen_coins/
+    random_predictions/      <- figures saved by eval_coin_counter.py
+
+assets/                      <- static images for README
+    week5_exact_euro_coins.png
+    week5_exact_us_coins.png
+    week5_exact_yen_coins.png
+    week5_fail_all_coins.png
+    week5_fail_china_coins.png
+    week5_fail_euro_coins.png
 ```
 
 ## Requirements
@@ -254,16 +273,18 @@ diameter in pixels.
 
 ## Week 5 — Overlapping Object Counter (Otsu + Watershed)
 
-**Files:** `main.py`, `otsu.py`, `watershed.py`
+**Files:** `main.py`, `otsu.py`, `watershed.py`, `eval_coin_counter.py`
 
 ### What it does
 Counts objects (e.g. coins) in an image even when several of them are
 touching or overlapping — a case where a naive threshold + connected
 components would merge touching objects into a single blob and
-undercount.
+undercount. The updated implementation also normalizes Otsu polarity
+before segmentation, so dark coins on bright backgrounds are handled
+correctly instead of being mistaken for background.
 
 ### How it works
-1. **`otsu_threshold`** (`otsu.py`) — implements Otsu's method by hand:
+1. **`otsu_threshold`** (`otsu.py`) — implements Otsu’s method by hand:
    - Builds a normalized 256-bin histogram (probability per intensity).
    - Computes cumulative pixel-fraction (`omega`) and cumulative mean
      (`mu`) arrays.
@@ -271,113 +292,242 @@ undercount.
      variance** in closed form; the threshold that *maximizes* it best
      separates foreground from background.
    - Returns both the optimal threshold and the resulting binary image.
-2. **`watershed`** (`watershed.py`) — the segmentation core:
-   - Blurs and Otsu-thresholds the grayscale image to get a clean binary
-     mask.
-   - **Morphological opening then closing** (4 iterations each) removes
-     small noise specks and fills small holes in the mask.
-   - **Sure background** = the opened/closed mask dilated outward (safely
-     background).
+
+2. **`watershed`** (`watershed.py`) — updated segmentation core:
+   - Converts to grayscale and applies a small Gaussian blur `(5,5)`.
+   - Runs `cv.bilateralFilter` twice (`sigmaColor=60`, `sigmaSpace=15`).
+     This smooths flat regions while preserving coin edges, which helps
+     Otsu and distance-transform seeding.
+   - Runs `otsu_threshold` to get a binary mask.
+   - Calls **`fix_polarity`** on the binary mask. It samples the image
+     border: if more than 50% of border pixels are `255`, the mask is
+     assumed inverted (background is bright) and `cv.bitwise_not` is
+     applied. This ensures `255` consistently means “object/coin” for the
+     rest of the pipeline.
+   - **Morphological opening then closing** (`(3,3)` kernel, 4 iterations
+     each) removes small noise specks and fills small holes.
+   - **Sure background** = the cleaned mask dilated outward 3 iterations.
    - **Sure foreground** = pixels far from any boundary, found via
-     `cv.distanceTransform` thresholded at 50% of its max — i.e. the
-     "core" of each object, even if two objects are touching at their
-     edges.
+     `cv.distanceTransform` thresholded at `0.5 * distance_transform.max()`
+     — i.e. the “core” of each object. *(This is still a single global
+     cutoff; see limitations below.)*
    - **Unknown region** = background minus foreground — the ambiguous
-     boundary zone between touching objects, which is exactly what
-     watershed needs to resolve.
-   - Labels each sure-foreground blob with `cv.connectedComponents`,
-     marks the unknown region as `0`, then runs `cv.watershed`, which
-     "floods" outward from each labeled seed and draws a boundary
-     (`-1`) wherever two floods meet — this is what correctly separates
-     touching/overlapping objects.
-   - Colors each resulting region randomly and paints watershed
-     boundaries red for visualization; returns the object count (`ret -
-     1`, since one label is the background).
-3. `main.py` runs Otsu thresholding and Watershed independently per
+     boundary zone between touching objects.
+   - Labels each sure-foreground blob with `cv.connectedComponents`, marks
+     the unknown region as `0`, then runs `cv.watershed`, which floods
+     outward from each labeled seed and draws a boundary (`-1`) wherever
+     two floods meet.
+   - Colors each resulting region randomly and paints watershed boundaries
+     red for visualization; returns the object count (`ret - 1`, since one
+     label is background).
+
+3. **`main.py`** runs Otsu thresholding and Watershed independently per
    image, prints the detected count, and shows all 3 stages side by side.
 
+4. **`eval_coin_counter.py`** — quantitative evaluation harness:
+   - Loads the ground-truth CSV (`coin-counting-eval/coins_count_values.csv`)
+     via `load_ground_truth`, expecting columns for folder, image name,
+     and true coin count.
+   - Iterates over every image under `IMAGES_ROOT`, reads it with OpenCV,
+     calls `watershed()`, and records
+     `(folder, filename, true_count, predicted_count)`.
+   - `report()` computes exact-match accuracy, accuracy within ±1, MAE,
+     and RMSE, then prints a per-folder breakdown.
+   - `display_random_predictions()` samples random (or exact-match-only)
+     results and saves 1×3 comparison figures — original, Otsu binary
+     mask, and segmented result — to `random_predictions/` when `save_dir`
+     is supplied.
+   - `performance_metrics()` optionally benchmarks end-to-end runtime
+     over multiple runs while muting per-image output.
+
 ### How to run
-1. Create a `coin-images/` folder next to `main.py`.
-2. Run:
-   ```bash
-   python main.py
-   ```
-3. For each image, the console prints the detected object count, and a
-   3-panel window shows: original, Otsu binary mask, and the final
-   colored/segmented Watershed result.
 
-### Quantitative evaluation (baseline)
+The quantitative evaluation uses the Kaggle **“Count Coins Image Dataset”**.
+The `coin-images/` folder is **no longer used** for testing; all
+evaluation is done directly on the dataset inside
+`coin-counting-eval/coins_images/`.
 
-To get an actual accuracy number rather than eyeballing a handful of
-images, `watershed()` was benchmarked against the
-[Kaggle "Count Coins Image Dataset"](https://www.kaggle.com/datasets/balabaskar/count-coins-image-dataset)
-(1,444 labeled images across 7 currency folders, each with a
-ground-truth coin count) using a separate evaluation harness,
-`eval_coin_counter.py`. See that script's docstring for setup
-instructions.
+You must arrange the dataset into this exact structure:
 
-**Baseline results — the `watershed.py` implementation described above,
-unmodified:**
+```
+week5_object_counter/
+    coin-counting-eval/
+        coins_count_values.csv
+        coins_images/
+            all_coins/
+            china_coins/
+            euro_coins/
+            indian_coins/
+            peso_coins/
+            us_coins/
+            yen_coins/
+```
+
+#### Set up the dataset with the Kaggle CLI
+
+**Linux / macOS:**
+
+```bash
+# 1. Install the Kaggle CLI
+pip install kaggle
+
+# 2. Put your kaggle.json at ~/.kaggle/kaggle.json and lock it down
+mkdir -p ~/.kaggle
+mv ~/Downloads/kaggle.json ~/.kaggle/kaggle.json
+chmod 600 ~/.kaggle/kaggle.json
+
+# 3. From inside week5_object_counter/, download + unzip
+cd week5_object_counter
+kaggle datasets download -d balabaskar/count-coins-image-dataset --unzip
+
+# 4. Create the destination folder and move the pieces into place
+mkdir -p coin-counting-eval
+mv coins_count_values.csv coin-counting-eval/
+mv coins_images coin-counting-eval/
+
+# 5. Verify
+ls coin-counting-eval
+ls coin-counting-eval/coins_images
+```
+
+**Windows (PowerShell):**
+
+```powershell
+# 1. Install the Kaggle CLI
+pip install kaggle
+
+# 2. Put your kaggle.json at %USERPROFILE%\.kaggle\kaggle.json
+New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.kaggle" | Out-Null
+Move-Item "$env:USERPROFILE\Downloads\kaggle.json" "$env:USERPROFILE\.kaggle\kaggle.json"
+
+# 3. From inside week5_object_counter\, download + unzip
+cd week5_object_counter
+kaggle datasets download -d balabaskar/count-coins-image-dataset --unzip
+
+# 4. Create the destination folder and move the pieces into place
+New-Item -ItemType Directory -Force -Path "coin-counting-eval" | Out-Null
+Move-Item "coins_count_values.csv" "coin-counting-eval\"
+Move-Item "coins_images" "coin-counting-eval\"
+
+# 5. Verify
+Get-ChildItem coin-counting-eval
+Get-ChildItem coin-counting-eval\coins_images
+```
+
+**Windows (cmd.exe):**
+
+```bat
+pip install kaggle
+mkdir "%USERPROFILE%\.kaggle"
+move "%USERPROFILE%\Downloads\kaggle.json" "%USERPROFILE%\.kaggle\kaggle.json"
+
+cd week5_object_counter
+kaggle datasets download -d balabaskar/count-coins-image-dataset --unzip
+
+mkdir coin-counting-eval
+move coins_count_values.csv coin-counting-eval\
+move coins_images coin-counting-eval\
+
+dir coin-counting-eval
+dir coin-counting-eval\coins_images
+```
+
+#### Run the evaluation
+
+Once the dataset is arranged, run:
+
+```bash
+python3 eval_coin_counter.py
+```
+
+This prints overall metrics (exact-match, within ±1, MAE, RMSE), a
+per-folder breakdown, and saves 10 random prediction figures to
+`random_predictions/`.
+
+### Quantitative evaluation (updated)
+
+The updated `watershed.py` (with `fix_polarity` and bilateral
+pre-filtering) was benchmarked on the same 1,444-image Kaggle “Count
+Coins Image Dataset” using `eval_coin_counter.py`.
+
+**Overall results:**
 
 | Metric | Value |
 |---|---|
-| Exact-match accuracy | 13.7% (198/1444) |
-| Accuracy within ±1 | 31.2% (451/1444) |
-| Mean Absolute Error (MAE) | 3.83 coins |
-| RMSE | 6.84 coins |
+| Exact-match accuracy | **50.1%** (723/1444) |
+| Accuracy within ±1 | **65.4%** (945/1444) |
+| Mean Absolute Error (MAE) | **2.39 coins** |
+| RMSE | **5.66 coins** |
+
+**Per-folder breakdown:**
 
 | Folder | n | Exact-match | MAE |
-|---|---|---|---|
-| all_coins | 215 | 14.4% | 4.86 |
-| china_coins | 210 | 8.6% | 3.52 |
-| euro_coins | 231 | 11.3% | 4.59 |
-| indian_coins | 220 | 15.9% | 4.89 |
-| peso_coins | 184 | 11.4% | 2.91 |
-| us_coins | 173 | 9.8% | 3.06 |
-| yen_coins | 211 | 23.7% | 2.61 |
+|---|---:|---:|---:|
+| all_coins | 215 | 39.1% | 3.71 |
+| china_coins | 210 | 51.4% | 1.94 |
+| euro_coins | 231 | 55.4% | 2.75 |
+| indian_coins | 220 | 45.5% | 3.11 |
+| peso_coins | 184 | 48.4% | 1.80 |
+| us_coins | 173 | 46.2% | 1.71 |
+| yen_coins | 211 | 63.5% | 1.44 |
 
-**Known inaccuracies in this implementation**, found by inspecting the
-worst-predicted images rather than inferring from the aggregate numbers
-alone:
+**Runtime:**
 
-1. **Otsu polarity is never checked.** `otsu_threshold()` returns `255`
-   for "brighter than the cutoff" and `0` for everything else — it has
-   no notion of which class is actually the coin. `watershed()` silently
-   assumes `255 == coin` throughout (the distance transform, sure
-   background/foreground logic all depend on it). This assumption breaks
-   on any image where the background is brighter than the coins — e.g. a
-   dark coin photographed on a white catalog page or product-listing
-   background. On those images the pipeline effectively measures
-   distance *into the background*, not the coins, producing wildly wrong
-   counts (observed: a 96-coin grid predicted `2`).
-2. **The foreground threshold is a single global cutoff, which breaks on
-   mixed-scale images.** `sure_foreground` is computed by thresholding
-   the distance transform at a flat `0.5 * distance_transform.max()`.
-   This value is set by whichever connected blob is *largest in the
-   whole image*. When a photo mixes one large cluster of touching coins
-   with smaller or separate coins elsewhere in the same frame, those
-   smaller coins' own distance values never clear 50% of the big
-   cluster's max — they're never seeded as their own object, and get
-   merged into "unknown"/absorbed into their neighbor instead of counted
-   separately. This systematically undercounts images with uneven
-   coin-cluster sizes.
-3. **These two bugs partially mask each other in the aggregate metric
-   above.** Bug 2's tendency to only ever seed the single most dominant
-   blob in an image has a side effect: it also suppresses fine surface
-   detail (engraved lettering, portraits) from being mistaken for
-   separate objects, since only one region can ever be "the max." That
-   means this baseline's MAE of 3.83 is, to some extent, an accident of
-   two independent bugs' effects partially offsetting one another rather
-   than evidence the underlying logic is sound — fixing either bug in
-   isolation does not reliably improve overall accuracy, since it can
-   remove a failure mode while simultaneously removing a different
-   failure mode's accidental suppression.
-4. **Morphological kernel size and the pre-threshold blur are both fixed
-   pixel constants** (`(3,3)` kernel, `(5,5)` blur) regardless of image
-   resolution. This dataset spans a large range, from small catalog
-   thumbnails to macro close-ups where a single coin fills most of the
-   frame — a fixed pixel-size constant can at best be correctly tuned
-   for one end of that range.
+- Full evaluation: **140.45 seconds** for 1,444 images
+  (~**0.0973 s/image**).
+- 5-run benchmark: average run **155.2165 s**, average
+  **0.1075 s/image**, standard deviation **8.4705 s**.
+
+**Comparison to the previous baseline:**
+
+| Metric | Old baseline | Updated |
+|---|---:|---:|
+| Exact-match | 13.7% | **50.1%** |
+| Within ±1 | 31.2% | **65.4%** |
+| MAE | 3.83 | **2.39** |
+| RMSE | 6.84 | **5.66** |
+
+The largest improvement comes from adding the `fix_polarity` edge
+heuristic: the old pipeline silently assumed `255 == coin`, which broke
+on bright-background / dark-coin images. Bilateral filtering also helps
+stabilize Otsu and distance-transform seeding by reducing noise without
+destroying edges.
+
+### Remaining limitations
+
+1. **The foreground threshold is still a single global cutoff.**
+   `sure_foreground` uses `0.5 * distance_transform.max()` for the whole
+   image. When a photo mixes one large touching cluster with smaller or
+   separate coins, those smaller coins may never clear 50% of the largest
+   blob’s max distance — they can be merged into “unknown” or absorbed
+   into a neighbor instead of counted separately.
+2. **Morphological kernel size and pre-threshold blur are still fixed
+   pixel constants** (`(3,3)` kernel, `(5,5)` blur), regardless of image
+   resolution. The dataset spans thumbnails to macro close-ups, so one
+   fixed scale cannot be optimal everywhere.
+3. **Remaining errors are concentrated in images with uneven coin scales
+   or unusual backgrounds.** The per-folder MAE shows `all_coins` and
+   `indian_coins` are the hardest subsets, while `yen_coins`, `us_coins`,
+   and `peso_coins` are comparatively clean.
+
+### Example predictions
+
+The images below illustrate the watershed pipeline's performance on
+the Count Coins dataset. Each figure shows the original image, the
+Otsu binary mask, and the colored watershed segmentation with
+predicted/true counts.
+
+**Exact matches:**
+
+![Exact match - euro_coins](assets/week5_exact_euro_coins.png)
+![Exact match - us_coins](assets/week5_exact_us_coins.png)
+![Exact match - yen_coins](assets/week5_exact_yen_coins.png)
+
+**Difficult cases (under/over-counting):**
+
+![Undercount - all_coins](assets/week5_fail_all_coins.png)
+![Undercount - china_coins](assets/week5_fail_china_coins.png)
+![Overcount - euro_coins](assets/week5_fail_euro_coins.png)
 
 ---
 
