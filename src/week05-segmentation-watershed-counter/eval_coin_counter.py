@@ -2,8 +2,12 @@ import cv2 as cv
 import numpy as np
 import os 
 import csv
+import random
+import matplotlib.pyplot as plt
+
 
 from watershed import watershed
+from otsu import otsu_threshold
 
 CSV_PATH = "coin-counting-eval/coins_count_values.csv"
 IMAGES_ROOT = "coin-counting-eval/coins_images"   # base folder that all_coins/china_coins/... live under
@@ -116,6 +120,103 @@ def report(results, errors, errors_by_folder):
               f"MAE={np.mean(errs):.2f}")
     print("=" * 55)
 
+def display_random_predictions(results, images_root, n=10, save_dir=None,
+                                seed=None, exact_matches_only=False):
+    """
+    Display a random sample of images with their predicted and true coin counts, along with the Otsu binary image and the segmented image.
+ 
+    Args:
+    results (list): List of (folder, filename, true_count, predicted_count)
+    images_root (str): Root folder of all coin images.
+    n (int): Number of random images to display.
+    save_dir (str): Directory to save the figures. If None, figures will be displayed
+    seed (int): Random seed for reproducibility.
+    exact_matches_only (bool): If True, only display images where the predicted count matches the true count exactly.
+
+    Must display the images in a 1x3 grid: original image, Otsu binary image, and segmented image.
+    If save_dir is provided, save the figures to that directory instead of displaying them.
+    """
+ 
+    candidates = results
+    if exact_matches_only:
+        candidates = [r for r in results if r[3] == r[2]]  # predicted == true
+        if not candidates:
+            print("No exact matches found in results.")
+            return
+ 
+    if not candidates:
+        print("Nothing to display.")
+        return
+ 
+    rng = random.Random(seed)
+    n = min(n, len(candidates))
+    subset = rng.sample(candidates, n)
+ 
+    if save_dir:
+        os.makedirs(save_dir, exist_ok=True)
+ 
+    for folder, fname, true_count, predicted_count in subset:
+        image_path = os.path.join(images_root, folder, fname)
+        image_bgr = cv.imread(image_path)
+ 
+        if image_bgr is None:
+            print(f"  [skip] unreadable: {image_path}")
+            continue
+ 
+        image_rgb = cv.cvtColor(image_bgr, cv.COLOR_BGR2RGB)
+        image_gray = cv.cvtColor(image_bgr, cv.COLOR_BGR2GRAY)
+ 
+        # Re-run Otsu + Watershed to regenerate the intermediate images
+        # for display (results[] only stores the final count) -- see the
+        # same note in display_worst_predictions.
+        otsu_binary_image = otsu_threshold(image_gray)[1]
+        recomputed_count, segmented_image = watershed(image_bgr)
+        segmented_image_rgb = cv.cvtColor(segmented_image, cv.COLOR_BGR2RGB)
+ 
+        diff = recomputed_count - true_count
+        match_label = "EXACT MATCH" if diff == 0 else f"diff={diff:+d}"
+ 
+        # Flag loudly if re-running the pipeline now disagrees with what
+        # evaluate() recorded earlier -- would mean watershed() isn't
+        # deterministic, or results[] is stale relative to the current
+        # code. Matters especially here since exact_matches_only trusts
+        # the ORIGINAL true_count/predicted_count pairing to pick these.
+        if exact_matches_only and diff != 0:
+            print(f"  [warning] {folder}/{fname} was recorded as an exact "
+                  f"match (true={true_count}) but re-running watershed() "
+                  f"now gives pred={recomputed_count} -- mismatch with the "
+                  f"original evaluate() run.")
+ 
+        fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+        label = f"{folder}/{fname}"
+ 
+        axes[0].imshow(image_rgb)
+        axes[0].axis("off")
+        axes[0].set_title(f"{label}\nOriginal (true={true_count})")
+ 
+        axes[1].imshow(otsu_binary_image, cmap="gray")
+        axes[1].axis("off")
+        axes[1].set_title("Otsu's Binary Image")
+ 
+        axes[2].imshow(segmented_image_rgb)
+        axes[2].axis("off")
+        axes[2].set_title(f"Segmented (pred={recomputed_count}, {match_label})")
+ 
+        plt.tight_layout()
+ 
+        if save_dir:
+            prefix = "exact_match" if exact_matches_only else "random"
+            out_name = f"{prefix}_{folder}_{fname}.png"
+            plt.savefig(os.path.join(save_dir, out_name))
+            plt.close(fig)
+        else:
+            plt.show()
+ 
+    if save_dir:
+        print(f"Saved {len(subset)} figures to {save_dir}/")
+
+
+
 def main():
     """
     Load the ground truth data, evaluate the predicted coin counts, and report the results.
@@ -126,6 +227,10 @@ def main():
     results, errors, errors_by_folder = evaluate(IMAGES_ROOT, ground_truth)
 
     report(results, errors, errors_by_folder)
+
+    display_random_predictions(
+        results, IMAGES_ROOT, n=10, seed=42, exact_matches_only=False, save_dir="random_predictions"
+    )
     
 if __name__ == "__main__":
     main()
