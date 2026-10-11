@@ -11,6 +11,12 @@ week01-manual-clahe/low-light-images/
 *.mp4
 *.avi
 *.mov
+
+# Allow README assets
+!assets/*.png
+!assets/*.jpg
+!assets/*.jpeg
+
 # Byte-compiled / optimized / DLL files
 pycache/
 *.py[cod]
