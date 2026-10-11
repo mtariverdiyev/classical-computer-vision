@@ -343,8 +343,7 @@ correctly instead of being mistaken for background.
 ### How to run
 
 The quantitative evaluation uses the Kaggle **“Count Coins Image Dataset”**.
-The `coin-images/` folder is **no longer used** for testing; all
-evaluation is done directly on the dataset inside
+All evaluation is done directly on the dataset inside
 `coin-counting-eval/coins_images/`.
 
 You must arrange the dataset into this exact structure:
@@ -519,15 +518,15 @@ predicted/true counts.
 
 **Exact matches:**
 
-![Exact match - euro_coins](assets/week5_exact_euro_coins.png)
-![Exact match - us_coins](assets/week5_exact_us_coins.png)
-![Exact match - yen_coins](assets/week5_exact_yen_coins.png)
+![Exact match - euro_coins](src/week05-segmentation-watershed-counter/assets/week5_exact_euro_coins.png)
+![Exact match - us_coins](src/week05-segmentation-watershed-counter/assets/week5_exact_us_coins.png)
+![Exact match - yen_coins](src/week05-segmentation-watershed-counter/assets/week5_exact_yen_coins.png)
 
 **Difficult cases (under/over-counting):**
 
-![Undercount - all_coins](assets/week5_fail_all_coins.png)
-![Undercount - china_coins](assets/week5_fail_china_coins.png)
-![Overcount - euro_coins](assets/week5_fail_euro_coins.png)
+![Undercount - all_coins](src/week05-segmentation-watershed-counter/assets/week5_fail_all_coins.png)
+![Undercount - china_coins](src/week05-segmentation-watershed-counter/assets/week5_fail_china_coins.png)
+![Overcount - euro_coins](src/week05-segmentation-watershed-counter/assets/week5_fail_euro_coins.png)
 
 ---
 
